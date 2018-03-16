@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/../eventService/eventService.iml" filepath="$PROJECT_DIR$/../eventService/eventService.iml" />
+      <module fileurl="file://$PROJECT_DIR$/project-3-kyrivero.iml" filepath="$PROJECT_DIR$/project-3-kyrivero.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../eventService/webFrontEnd.iml" filepath="$PROJECT_DIR$/../eventService/webFrontEnd.iml" />
+    </modules>
+  </component>
+</project>
