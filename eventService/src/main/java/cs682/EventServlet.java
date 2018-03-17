@@ -7,8 +7,9 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.*;
-
 import org.json.simple.JSONArray;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.JSONObject;
@@ -24,8 +25,15 @@ public class EventServlet extends HttpServlet {
         if (pathInfo.equals("/create")) {
             createEvent(request, response);
         } else {
-            System.out.println("Purchase ticket");
-            //purchaseTicket(request);
+            System.out.println("Purchase tickets");
+            Pattern pattern = Pattern.compile("/purchase/([\\d]+)");
+            Matcher match = pattern.matcher(pathInfo);
+            if (match.find()) {
+                System.out.println(match.group(1));
+                purchaseTicket(request, response);
+            } else {
+                System.out.println("Invalid Path");
+            }
         }
     }
 
@@ -38,7 +46,7 @@ public class EventServlet extends HttpServlet {
             listAllEvents(response);
         } else {
             System.out.println("List One");
-            //list one event detail
+            showOneEvent(request, response);
         }
     }
 
@@ -57,7 +65,8 @@ public class EventServlet extends HttpServlet {
                 int id = eventData.getLastEventId() + 1;
                 Event event = new Event(id, eventName, userId, numTickets);
                 eventData.addEvent(event);
-                String jsonResponse = createJsonResponseNewEvent(id);
+                JSONObject json = createJsonResponseNewEvent(id);
+                String jsonResponse = json.toString();
                 System.out.println(jsonResponse);
                 response.setStatus(HttpServletResponse.SC_OK);
                 response.setContentType("application/json;charset=UTF-8");
@@ -90,14 +99,16 @@ public class EventServlet extends HttpServlet {
         return body;
     }
 
-    private String createJsonResponseNewEvent(int id){
+    private JSONObject createJsonResponseNewEvent(int id){
         JSONObject json = new JSONObject();
         json.put("eventid",id);
-        return json.toString();
+        return json;
     }
 
     private void listAllEvents(HttpServletResponse response) {
-        String jsonEventsList = createJsonRespEventsList();
+        EventData eventData = new EventData();
+        JSONArray array = eventData.createJsonEventsList();
+        String jsonEventsList = array.toString();
         try {
             response.setStatus(HttpServletResponse.SC_OK);
             response.setContentType("application/json;charset=UTF-8");
@@ -109,21 +120,63 @@ public class EventServlet extends HttpServlet {
             e.printStackTrace();
         }
     }
-    private String createJsonRespEventsList() {
-        EventData eventData = new EventData();
-        eventData.printEventList(); // erase
-        List<Event> eventsList = eventData.getEventsList();
-        JSONArray jsonArray = new JSONArray();
-        for ( Event e: eventsList) {
-            JSONObject jsonObj = new JSONObject();
-            jsonObj.put("eventid", e.getId());
-            jsonObj.put("eventname",e.getName());
-            jsonObj.put("userid", e.getUserId());
-            jsonObj.put("avail", e.getAvail());
-            jsonObj.put("purchased", e.getPurchased());
-            jsonArray.add(jsonObj);
+
+    private void showOneEvent(HttpServletRequest request, HttpServletResponse response) {
+        try {
+            String path = request.getPathInfo();
+            int eventId = Integer.parseInt(path.substring(1));
+            EventData eventData = new EventData();
+            if (eventData.isRegistered(eventId)) {
+                JSONObject json = eventData.createJsonOneEvent(eventId);
+                String jsonResponse  = json.toString();
+                response.setStatus(HttpServletResponse.SC_OK);
+                response.setContentType("application/json;charset=UTF-8");
+                PrintWriter out = response.getWriter();
+                out.write(jsonResponse);
+                out.flush();
+                out.close();
+                } else {
+                    response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+                }
+        } catch (IOException e) {
+                e.printStackTrace();
         }
-        System.out.println(jsonArray.toString());
-        return jsonArray.toString();
+    }
+
+    private void purchaseTicket(HttpServletRequest request, HttpServletResponse response) {
+        try {
+            String requestBody = getRequestBody(request);
+            System.out.println(requestBody);
+            JSONParser parser = new JSONParser();
+            JSONObject jsonObj=  (JSONObject) parser.parse(requestBody);
+            int userId = ((Long)jsonObj.get("userid")).intValue();
+            int eventId = ((Long)jsonObj.get("eventid")).intValue();
+            int tickets = ((Long)jsonObj.get("tickets")).intValue();
+            //
+            UserServiceLink userService = new UserServiceLink();
+            EventData eventData = new EventData();
+            if (userService.isValidUserId(userId) && eventData.isRegistered(eventId)) {
+                boolean ticketsUpdatedSuccessfully = eventData.updateNumTickets(eventId, tickets);
+                boolean ticketsAddedSuccessfully = userService.addTicketsToUser(userId, eventId, tickets);
+                if (ticketsUpdatedSuccessfully && ticketsAddedSuccessfully) {
+                    response.setStatus(HttpServletResponse.SC_OK);
+                    eventData.printEventList(); //erase
+                } else {
+                    if (!ticketsAddedSuccessfully) {
+                        eventData.undoUpdateNumTickets(eventId, tickets);
+                    } else {
+                        // undoAddTicketsToUser();
+                    }
+                    response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+                }
+            } else {
+                response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            }
+            //
+        } catch (IOException e) {
+            e.printStackTrace();
+        } catch (ParseException e) {
+            e.printStackTrace();
+        }
     }
 }

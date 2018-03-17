@@ -30,6 +30,18 @@ public class Event {
     }
 
     /**
+     * Constructor with no parameters
+     */
+    public Event(){
+        id = 0;
+        name = null;
+        userId = 0;
+        numTickets = 0;
+        avail = 0;
+        purchased = 0;
+    }
+
+    /**
      * Event id setter
      * @param id - new id value
      */

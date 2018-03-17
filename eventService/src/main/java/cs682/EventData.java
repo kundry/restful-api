@@ -1,5 +1,8 @@
 package cs682;
 
+import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
+
 import java.util.*;
 
 /**
@@ -48,6 +51,10 @@ public class EventData {
         }
     }
 
+    public boolean isRegistered(int id) {
+      return eventsMap.containsKey(id);
+    }
+
     /**
      * Method that returns the details of a given
      * event id
@@ -56,10 +63,116 @@ public class EventData {
      */
     public Event getEventDetails(int id) {
         synchronized (eventsMap) {
-            return eventsMap.get(id);
+            Event eventCopy = new Event();
+            if (isRegistered(id)) {
+                eventCopy.setId(eventsMap.get(id).getId());
+                eventCopy.setName(eventsMap.get(id).getName());
+                eventCopy.setUserId(eventsMap.get(id).getUserId());
+                eventCopy.setNumTickets(eventsMap.get(id).getNumTickets());
+                eventCopy.setAvail(eventsMap.get(id).getAvail());
+                eventCopy.setPurchased(eventsMap.get(id).getPurchased());
+            } else {
+                eventCopy = null;
+            }
+            return eventCopy;
         }
     }
 
+    /**
+     * Method that generates a JSON Array with all the events
+     * registered in the map of events
+     * @return jsonArray of events
+     */
+    public JSONArray createJsonEventsList() {
+        printEventList(); // erase
+        List<Event> eventsList = getEventsList();
+        JSONArray jsonArray = new JSONArray();
+        for ( Event e: eventsList) {
+            JSONObject jsonObj = new JSONObject();
+            jsonObj.put("eventid", e.getId());
+            jsonObj.put("eventname",e.getName());
+            jsonObj.put("userid", e.getUserId());
+            jsonObj.put("avail", e.getAvail());
+            jsonObj.put("purchased", e.getPurchased());
+            jsonArray.add(jsonObj);
+        }
+        System.out.println(jsonArray.toString());
+        return jsonArray;
+    }
+    /**
+     * Method that generates a JSON object with the details
+     * of the event of the given id
+     * @return jsonArray of events
+     */
+    public JSONObject createJsonOneEvent(int id) {
+        JSONObject jsonEvent = new JSONObject();
+        if (isRegistered(id)) {
+            Event event = getEventDetails(id);
+            jsonEvent.put("eventid", event.getId());
+            jsonEvent.put("eventname", event.getName());
+            jsonEvent.put("userid", event.getUserId());
+            jsonEvent.put("avail", event.getAvail());
+            jsonEvent.put("purchased", event.getPurchased());
+        }
+        return jsonEvent;
+    }
+    /**
+     * Method that returns the amount of tickets available
+     * for a given event id
+     * @param id event id
+     * @return amount the tickets available
+     */
+    public int ticketsAvailable(int id) {
+        synchronized (eventsMap) {
+            if (isRegistered(id)) {
+                return eventsMap.get(id).getAvail();
+            } else {
+                return 0;
+            }
+        }
+    }
+
+    /**
+     * Method that update the amount of available and purchased
+     * tickets of the given event
+     * @param eventId event id
+     * @param numTickets amount of tickets to purchase
+     * @return true if successful or false if unsuccessful
+     */
+    public boolean updateNumTickets(int eventId, int numTickets) {
+        boolean success = false;
+        if (ticketsAvailable(eventId) >= numTickets) {
+            Event eventToUpdate = eventsMap.get(eventId);
+            //synchronized (eventToUpdate) {
+                eventToUpdate.setAvail(eventToUpdate.getAvail() - numTickets);
+                eventToUpdate.setPurchased(eventToUpdate.getPurchased() + numTickets);
+            //}
+            success = true;
+        }
+        return success;
+    }
+
+    /**
+     * Method that does the roll back of the method updateNumTickets
+     * @param eventId event id
+     * @param numTickets amount of tickets purchased
+     * @return true if successful or false if unsuccessful
+     */
+    public boolean undoUpdateNumTickets(int eventId, int numTickets) {
+        boolean success = false;
+        Event eventToUpdate = eventsMap.get(eventId);
+        //synchronized (eventToUpdate) {
+        eventToUpdate.setAvail(eventToUpdate.getAvail() + numTickets);
+        eventToUpdate.setPurchased(eventToUpdate.getPurchased() - numTickets);
+        //}
+        success = true;
+        return success;
+    }
+
+    /**
+     * Method that prints on the console the content
+     * of the data structure of events
+     */
     public void printEventList() {
         synchronized(eventsMap) {
             System.out.println("Event List: ");
