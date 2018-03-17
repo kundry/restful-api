@@ -2,8 +2,8 @@ package cs682;
 
 import org.json.simple.JSONObject;
 
+import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.io.OutputStreamWriter;
@@ -33,7 +33,7 @@ public class UserServiceLink {
             conn.setRequestProperty("Accept", "application/json");
             conn.setRequestMethod("GET");
             int responseCode = conn.getResponseCode();
-            if (responseCode == Driver.OK_STATUS_CODE) isValid = true;
+            if (responseCode == HttpServletResponse.SC_OK) isValid = true;
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -68,7 +68,7 @@ public class UserServiceLink {
             out.flush();
             out.close();
             int responseCode = conn.getResponseCode();
-            if (responseCode == Driver.OK_STATUS_CODE) success = true;
+            if (responseCode == HttpServletResponse.SC_OK) success = true;
         } catch (IOException e) {
             e.printStackTrace();
         }

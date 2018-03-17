@@ -8,8 +8,8 @@ import org.eclipse.jetty.servlet.ServletHolder;
  */
 public class Driver {
     public static final int PORT = 8080;
-    public static final int OK_STATUS_CODE = 200;
-    public static final int BAD_REQUEST_STATUS_CODE = 400;
+    //public static final int OK_STATUS_CODE = 200;
+    //public static final int BAD_REQUEST_STATUS_CODE = 400;
     public static final String USER_SERVICE_HOST = "http://localhost";
     public static final int USER_SERVICE_PORT = 4357;
 
