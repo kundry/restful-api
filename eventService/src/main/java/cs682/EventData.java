@@ -4,6 +4,7 @@ import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
 import java.util.*;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Class that contains the data structure that holds the list
@@ -11,17 +12,37 @@ import java.util.*;
  */
 public class EventData {
     /** Thread Safe Data Structure thar contains the list of events registered */
-    private static final SortedMap<Integer,Event> eventsMap = Collections.synchronizedSortedMap(new TreeMap<Integer,Event>());
+    private SortedMap<Integer,Event> eventsMap;
+    private ReentrantLock lock;
+
+    /** Makes sure only one EvenData is instantiated. */
+    private static EventData singleton = new EventData();
+
+    /** Constructor */
+    private EventData() {
+        eventsMap = Collections.synchronizedSortedMap(new TreeMap<Integer,Event>());
+        lock = new ReentrantLock();
+    }
+
+    /** Makes sure only one EvenData is instantiated. Returns the Singleton */
+    public static EventData getInstance(){
+        return singleton;
+    }
 
     /**
      * Method returns the last event id
      * @return last event id
      */
     public int getLastEventId() {
-        if (!eventsMap.isEmpty()) {
-            return eventsMap.lastKey();
-        } else {
-            return 0;
+        lock.lock();
+        try {
+            if (!eventsMap.isEmpty()) {
+                return eventsMap.lastKey();
+            } else {
+                return 0;
+            }
+        } finally {
+            lock.unlock();
         }
     }
 
@@ -41,14 +62,17 @@ public class EventData {
      * @return  List of event objects
      */
     public List<Event> getEventsList() {
+        List<Event> eventsList = new ArrayList<>();
+        Set<Integer> keySet = eventsMap.keySet();
         synchronized(eventsMap) {
-            List<Event> eventsList = new ArrayList<>();
-            Set<Integer> keySet = eventsMap.keySet();
-            for (Integer key: keySet) {
-                eventsList.add(eventsMap.get(key));
+            for (Integer key : keySet) {
+                Event eventCopy;
+                eventCopy = getEventDetails(key);
+                //eventsList.add(eventsMap.get(key));
+                eventsList.add(eventCopy);
             }
-            return eventsList;
         }
+        return eventsList;
     }
 
     public boolean isRegistered(int id) {
@@ -62,20 +86,23 @@ public class EventData {
      * @return Event object with the details of the event
      */
     public Event getEventDetails(int id) {
-        synchronized (eventsMap) {
-            Event eventCopy = new Event();
-            if (isRegistered(id)) {
-                eventCopy.setId(eventsMap.get(id).getId());
-                eventCopy.setName(eventsMap.get(id).getName());
-                eventCopy.setUserId(eventsMap.get(id).getUserId());
-                eventCopy.setNumTickets(eventsMap.get(id).getNumTickets());
-                eventCopy.setAvail(eventsMap.get(id).getAvail());
-                eventCopy.setPurchased(eventsMap.get(id).getPurchased());
-            } else {
-                eventCopy = null;
-            }
-            return eventCopy;
-        }
+        lock.lock();
+        Event eventCopy = new Event();
+         try {
+             if (isRegistered(id)) {
+                 eventCopy.setId(eventsMap.get(id).getId());
+                 eventCopy.setName(eventsMap.get(id).getName());
+                 eventCopy.setUserId(eventsMap.get(id).getUserId());
+                 eventCopy.setNumTickets(eventsMap.get(id).getNumTickets());
+                 eventCopy.setAvail(eventsMap.get(id).getAvail());
+                 eventCopy.setPurchased(eventsMap.get(id).getPurchased());
+             } else {
+                 eventCopy = null;
+             }
+         } finally {
+             lock.unlock();
+             return eventCopy;
+         }
     }
 
     /**
@@ -84,7 +111,6 @@ public class EventData {
      * @return jsonArray of events
      */
     public JSONArray createJsonEventsList() {
-        printEventList(); // erase
         List<Event> eventsList = getEventsList();
         JSONArray jsonArray = new JSONArray();
         for ( Event e: eventsList) {
@@ -123,12 +149,15 @@ public class EventData {
      * @return amount the tickets available
      */
     public int ticketsAvailable(int id) {
-        synchronized (eventsMap) {
+        lock.lock();
+        try {
             if (isRegistered(id)) {
                 return eventsMap.get(id).getAvail();
             } else {
                 return 0;
             }
+        } finally {
+            lock.unlock();
         }
     }
 
@@ -141,15 +170,18 @@ public class EventData {
      */
     public boolean updateNumTickets(int eventId, int numTickets) {
         boolean success = false;
-        if (ticketsAvailable(eventId) >= numTickets) {
-            Event eventToUpdate = eventsMap.get(eventId);
-            //synchronized (eventToUpdate) {
+        lock.lock();
+        try {
+            if (ticketsAvailable(eventId) >= numTickets) {
+                Event eventToUpdate = eventsMap.get(eventId);
                 eventToUpdate.setAvail(eventToUpdate.getAvail() - numTickets);
                 eventToUpdate.setPurchased(eventToUpdate.getPurchased() + numTickets);
-            //}
-            success = true;
+                success = true;
+            }
+        } finally {
+            lock.unlock();
+            return success;
         }
-        return success;
     }
 
     /**
@@ -160,13 +192,16 @@ public class EventData {
      */
     public boolean undoUpdateNumTickets(int eventId, int numTickets) {
         boolean success = false;
-        Event eventToUpdate = eventsMap.get(eventId);
-        //synchronized (eventToUpdate) {
-        eventToUpdate.setAvail(eventToUpdate.getAvail() + numTickets);
-        eventToUpdate.setPurchased(eventToUpdate.getPurchased() - numTickets);
-        //}
-        success = true;
-        return success;
+        lock.lock();
+        try {
+            Event eventToUpdate = eventsMap.get(eventId);
+            eventToUpdate.setAvail(eventToUpdate.getAvail() + numTickets);
+            eventToUpdate.setPurchased(eventToUpdate.getPurchased() - numTickets);
+            success = true;
+        }finally {
+            lock.unlock();
+            return success;
+        }
     }
 
     /**

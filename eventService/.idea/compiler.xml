@@ -10,7 +10,7 @@
       </profile>
     </annotationProcessing>
     <bytecodeTargetLevel target="1.8">
-      <module name="eventService" target="1.5" />
+      <module name="eventService" target="1.7" />
     </bytecodeTargetLevel>
   </component>
 </project>

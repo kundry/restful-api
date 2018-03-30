@@ -1,7 +1,6 @@
 package cs682;
 
 import org.json.simple.JSONObject;
-
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.net.HttpURLConnection;

@@ -1,17 +1,23 @@
 package cs682;
 
+import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
+
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.*;
 import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
+import java.net.ProtocolException;
 import java.net.URL;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.ArrayList;
+
 
 
 public class UserServlet extends HttpServlet {
-    //private  String USER_SERVICE_HOST = "http://localhost:4357";
 
     @Override
     public void doPost(HttpServletRequest request, HttpServletResponse response) {
@@ -20,17 +26,13 @@ public class UserServlet extends HttpServlet {
         System.out.println(pathInfo);
 
         if (pathInfo == null) {
-            System.out.println("Invalid Path Info");
+            System.out.println("Invalid Path"); // set response status code ??
         } else {
             if (pathInfo.equals("/create")) {
                 createUser(request, response);
             } else {
                 System.out.println("Transfer tickets");
-                Pattern pattern = Pattern.compile("/([\\d]+)/tickets/transfer");
-                Matcher match = pattern.matcher(pathInfo);
-                if (match.find()) {
-                    System.out.println(match.group(1));
-                    System.out.println(match.group(0));
+                if (pathInfo.matches("/([\\d]+)/tickets/transfer")) {
                     transferTickets(request, response);
                 } else {
                     System.out.println("Invalid Path");
@@ -60,15 +62,16 @@ public class UserServlet extends HttpServlet {
                     jsonResponse = getResponseBody(conn);
                     response.setStatus(HttpServletResponse.SC_OK);
                     response.setContentType("application/json;charset=UTF-8");
+                    JSONObject updatedJson = buildJsonWithEventDetails(jsonResponse);
                     PrintWriter out = response.getWriter();
-                    out.write(jsonResponse);
+                    out.write(updatedJson.toString());
                     out.flush();
                     out.close();
-                    System.out.println(jsonResponse); //erase
+                    System.out.println(updatedJson.toString()); //erase
                     break;
                 case HttpServletResponse.SC_BAD_REQUEST:
                     response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-                    System.out.println("400: User not found"); //erase
+                    System.out.println("400: User not found");
                     break;
                 default:
                     break;
@@ -78,7 +81,11 @@ public class UserServlet extends HttpServlet {
             e.printStackTrace();
         }
     }
-
+    /**
+     * Performs the operation of creating a user and it communicates with the user service
+     * @param request request
+     * @param response response
+     * */
     private void createUser(HttpServletRequest request, HttpServletResponse response) {
         String requestBody, jsonResponse;
         String path = "/create";
@@ -102,7 +109,6 @@ public class UserServlet extends HttpServlet {
             switch (responseCode) {
                 case HttpServletResponse.SC_OK:
                     jsonResponse = getResponseBody(conn);
-                    System.out.println(jsonResponse);
                     response.setStatus(HttpServletResponse.SC_OK);
                     response.setContentType("application/json;charset=UTF-8");
                     PrintWriter outResponse = response.getWriter();
@@ -112,7 +118,6 @@ public class UserServlet extends HttpServlet {
                     break;
                 case HttpServletResponse.SC_BAD_REQUEST:
                     response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-                    System.out.println("400: User unsuccessfully created");
                     break;
                 default:
                     response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
@@ -124,6 +129,11 @@ public class UserServlet extends HttpServlet {
         }
     }
 
+    /**
+     * Performs the operation of transfering tickets
+     * @param request request
+     * @param response response
+     * */
     private void transferTickets(HttpServletRequest request, HttpServletResponse response) {
         String requestBody;
         String path = request.getPathInfo();
@@ -131,7 +141,6 @@ public class UserServlet extends HttpServlet {
         String url = host + path;
         try {
             requestBody = getRequestBody(request);
-            System.out.println(requestBody);
             URL urlObj = new URL(url);
             HttpURLConnection conn = (HttpURLConnection) urlObj.openConnection();
             conn.setDoInput(true);
@@ -150,7 +159,6 @@ public class UserServlet extends HttpServlet {
                     break;
                 case HttpServletResponse.SC_BAD_REQUEST:
                     response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-                    System.out.println("400: Tickets could not be transferred");
                     break;
                 default:
                     response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
@@ -161,7 +169,80 @@ public class UserServlet extends HttpServlet {
             e.printStackTrace();
         }
     }
+    /**
+     * Builds a JSon Object with the datails of the events
+     * @param jsonFromUser Json with format of a string  returned by the User Service
+     * @return jsonArray of events
+     * */
+    private JSONObject buildJsonWithEventDetails(String jsonFromUser){
+        JSONObject jsonUpdated = null;
+        JSONArray jsonArrayOfTickets;
+        JSONArray jsonArrayEvents;
+        JSONParser parser = new JSONParser();
+        ArrayList<Integer> eventIdList = new ArrayList();
+        try {
 
+            JSONObject userServJson = (JSONObject) parser.parse(jsonFromUser);
+            jsonArrayOfTickets = (JSONArray)userServJson.get("tickets");
+            for (int i = 0; i < jsonArrayOfTickets.size(); i++) {
+                JSONObject row = (JSONObject) jsonArrayOfTickets.get(i);
+                int eventId =  ((Long)row.get("eventid")).intValue();
+                eventIdList.add(eventId);
+            }
+            jsonArrayEvents = getEventArray(eventIdList);
+            userServJson.replace("tickets",jsonArrayEvents);
+            jsonUpdated = userServJson;
+
+        } catch (ParseException e) {
+            e.printStackTrace();
+        }
+
+        return jsonUpdated;
+    }
+    /**
+     * Generates a JsonArray of events
+     * @param eventIdList list of event ids
+     * @return jsonArray of events
+     * */
+    private JSONArray getEventArray(ArrayList<Integer> eventIdList){
+        String host = Driver.EVENT_SERVICE_HOST + ":" + String.valueOf(Driver.EVENT_SERVICE_PORT);
+        JSONArray jsonArray = new JSONArray();
+        try {
+            for(int i = 0; i<eventIdList.size(); i++) {
+                int eventId = eventIdList.get(i);
+                String id = String.valueOf(eventId);
+                String url = host + "/" + id;
+                URL urlObj = new URL(url);
+                HttpURLConnection conn  = (HttpURLConnection) urlObj.openConnection();
+                conn.setDoInput(true);
+                conn.setDoOutput(true);
+                conn.setRequestProperty("Content-Type", "application/json");
+                conn.setRequestProperty("Accept", "application/json");
+                conn.setRequestMethod("GET");
+                int responseCode = conn.getResponseCode();
+                if (responseCode == HttpServletResponse.SC_OK) {
+                    String jsonResponse = getResponseBody(conn);
+                    JSONParser parser = new JSONParser();
+                    JSONObject oneEventJson = (JSONObject) parser.parse(jsonResponse);
+                    jsonArray.add(oneEventJson);
+                }
+            }
+        } catch (MalformedURLException e) {
+            e.printStackTrace();
+        } catch (ProtocolException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        } catch (ParseException e) {
+            e.printStackTrace();
+        }
+        return jsonArray;
+    }
+    /**
+     * Gets the jason of the body of the request and converted into string
+     * @param request http request
+     * @return json received in the request converted into a string
+     * */
     private String getRequestBody(HttpServletRequest request) throws IOException {
         BufferedReader in;
         String line, body;
@@ -176,6 +257,11 @@ public class UserServlet extends HttpServlet {
         return body;
     }
 
+    /**
+     * Gets the jason of the body of the response and converted into string
+     * @param conn http request
+     * @return json received in the request converted into a string
+     * */
     private String getResponseBody(HttpURLConnection conn) throws IOException {
         BufferedReader in;
         String line, body;
